@@ -4,6 +4,27 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+const generateAccessAndRefreshToken = async () => {
+  try {
+
+    const user = await User.findById(userId);
+    const accessToken = await user.generateAccessToken();
+    const refreshToken = await user.generateRefreshToken();
+
+    // Saving refreshToken in Database
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });  
+    return { accessToken, refreshToken}
+
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something Went Wrong While creating Access And refresh Token"
+    );
+  }
+};
+
+
 const registerUser = asyncHandler(async (req, res) => {
   // Get User Details from frontend
   // Validation Not-empty
@@ -43,7 +64,16 @@ const registerUser = asyncHandler(async (req, res) => {
   // console.log("Request Body:", req.body);
   // console.log("Uploaded File:", req.files);
 
-  const coverImagelocalPath = req.files?.coverImage[0]?.path;
+  // const coverImagelocalPath = req.files?.coverImage[0]?.path;
+
+  let coverImagelocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImagelocalPath = req.files.coverImage[0].path;
+  }
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "avatar image is required");
@@ -85,4 +115,43 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, createdUser, "user registered Succesfully"));
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res) => {
+  // get data from frontend
+  // login With username or pass
+  // Check if user existed
+  // Check for password
+  // access and refresh token
+  // send cookies
+  //  resposne send
+
+  const { email, userName, password } = req.body();
+
+  if (!userName || !email) {
+    throw new ApiError(400, "username of password is required");
+  }
+
+  // Finding user in stored database using email or pass
+  const user = await User.findOne({
+    $or: [{ email }, { userName }],
+  });
+
+  if (!user) {
+    throw new ApiError(404, "user Does not exist");
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid Credentials");
+  }
+
+  const {accessToken , refreshToken} = await generateAccessAndRefreshToken(user._id)
+
+
+
+
+
+
+});
+
+export { registerUser, loginUser };
